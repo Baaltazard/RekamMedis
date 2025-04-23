@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cari Pasien</title>
+    <!-- Bootstrap 5 -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Select2 + Bootstrap 4 theme -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/select2-bootstrap4-theme@1.3.0/dist/select2-bootstrap4.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f8f9fa;
+      }
+      /* Style dasar untuk Select2 */
+      .select2-container {
+        width: 100% !important;
+      }
+
+      .select2-container .select2-selection--single {
+        height: 2.375rem;
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+        background-color: #fff;
+        display: flex;
+        align-items: center;
+      }
+
+      .select2-container--default
+        .select2-selection--single
+        .select2-selection__arrow {
+        height: 100%;
+        right: 0.75rem;
+        top: 0.375rem;
+        width: auto;
+      }
+
+      .select2-container--default
+        .select2-selection--single
+        .select2-selection__rendered {
+        color: #212529;
+        line-height: 1.5;
+        padding-left: 0;
+      }
+
+      .select2-container--default .select2-selection--single:focus {
+        border-color: #86b7fe;
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+      }
+
+      /* Dropdown style */
+      .select2-dropdown {
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+      }
+
+      .select2-results__option {
+        padding: 0.5rem 1rem;
+        font-size: 0.95rem;
+      }
+
+      .select2-results__option--highlighted {
+        background-color: #0d6efd;
+        color: white;
+      }
+
+      .select2-results__option--selected {
+        background-color: #e9ecef;
+        color: #212529;
+      }
+      .select2-results__option--loading::after {
+        content: "Searching";
+        animation: dots 1s steps(3, end) infinite;
+        display: inline-block;
+        margin-left: 5px;
+      }
+
+      @keyframes dots {
+        0% {
+          content: "Searching";
+        }
+        33% {
+          content: "Searching.";
+        }
+        66% {
+          content: "Searching..";
+        }
+        100% {
+          content: "Searching...";
+        }
+      }
+    </style>
+  </head>
+  <body class="p-4">
+    <div class="container">
+      <a href="home.html" class="btn btn-danger mb-4 shadow"
+        >Back To Dashboard</a
+      >
+      <h2 class="mb-4">Cari Pasien Berdasarkan Nama</h2>
+
+      <div class="mb-3">
+        <label for="searchName" class="form-label">Nama Pasien</label>
+        <select
+          id="searchName"
+          class="form-select"
+          style="width: 100%"
+        ></select>
+      </div>
+
+      <div class="table-responsive d-none" id="resultTable">
+        <table class="table table-bordered table-striped mt-4">
+          <thead class="table-success" style="font-size: 12px"></thead>
+          <tbody id="resultBody" style="font-size: 12px"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- JS: jQuery, Bootstrap, Select2 -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+      const BASE_API =
+        "https://script.google.com/macros/s/AKfycby6WXvYTeZcRpVb6UtkM4EMODKXJQKYF2nFdO5qIg6NvOeyMooIsL-yXm2Neoj7dYdg-Q/exec";
+
+      const cache = {};
+
+      $(document).ready(function () {
+        $("#searchName").select2({
+          theme: "bootstrap4",
+          placeholder: "Ketik nama pasien",
+          allowClear: true,
+          minimumInputLength: 1,
+          ajax: {
+            url: BASE_API,
+            dataType: "json",
+            delay: 100,
+            data: (params) => ({
+              name: params.term || "",
+              mode: "select2",
+            }),
+            beforeSend: () => {
+              startSelect2LoadingAnimation();
+            },
+            processResults: (data) => ({
+              results: data.data.map((row) => ({
+                id: row[3],
+                text: row[3],
+              })),
+            }),
+            cache: true,
+          },
+        });
+
+        // 🌀 Animasi Loading Saat Search
+        function startSelect2LoadingAnimation() {
+          let dots = 0;
+          const intervalId = setInterval(() => {
+            const $loading = $(".select2-results__option--loading");
+            if ($loading.length) {
+              dots = (dots + 1) % 4;
+              $loading.text("🔍 Mencari" + ".".repeat(dots));
+            } else {
+              clearInterval(intervalId);
+            }
+          }, 300);
+        }
+
+        // Tampilkan hasil detail saat dipilih
+        $("#searchName").on("select2:select", function (e) {
+          const nama = e.params.data.id;
+
+          if (cache[nama]) {
+            showResult(cache[nama].header, cache[nama].data);
+            return;
+          }
+
+          showSpinner(true);
+
+          $.ajax({
+            url: BASE_API,
+            method: "GET",
+            data: {
+              name: nama,
+              mode: "detail",
+            },
+            success: function (res) {
+              cache[nama] = res;
+              showResult(res.header, res.data);
+            },
+            error: function () {
+              alert("Gagal mengambil data pasien.");
+            },
+            complete: function () {
+              showSpinner(false);
+            },
+          });
+        });
+      });
+
+      function showSpinner(show) {
+        if (show) {
+          $("body").append(`
+      <div id="loadingSpinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75" style="z-index: 1050;">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    `);
+        } else {
+          $("#loadingSpinner").remove();
+        }
+      }
+
+      function showResult(header, data) {
+        const thead = document.querySelector("thead");
+        const tbody = document.querySelector("tbody");
+        const tableWrapper = document.getElementById("resultTable");
+
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+
+        const trHead = document.createElement("tr");
+        header.forEach((text) => {
+          const th = document.createElement("th");
+          th.textContent = text;
+          trHead.appendChild(th);
+        });
+        thead.appendChild(trHead);
+
+        data.forEach((row) => {
+          const tr = document.createElement("tr");
+          header.forEach((_, i) => {
+            const td = document.createElement("td");
+            td.textContent = row[i] || "";
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+
+        tableWrapper.classList.remove("d-none");
+      }
+    </script>
+  </body>
+</html>

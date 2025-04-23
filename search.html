@@ -104,30 +104,55 @@
           content: "Searching...";
         }
       }
+      table td {
+        padding: 0.75rem !important;
+        vertical-align: middle;
+      }
     </style>
   </head>
   <body class="p-4">
     <div class="container">
-      <a href="index.html" class="btn btn-danger mb-4 shadow"
+      <a href="home.html" class="btn btn-danger mb-4 shadow"
         >Back To Dashboard</a
       >
       <h2 class="mb-4">Cari Pasien Berdasarkan Nama</h2>
 
-      <div class="mb-3">
+      <!-- <div class="mb-3">
         <label for="searchName" class="form-label">Nama Pasien</label>
         <select
           id="searchName"
           class="form-select"
           style="width: 100%"
         ></select>
+      </div> -->
+      <table class="table table-bordered w-100 shadow" style="font-size: 14px">
+        <tr>
+          <td style="vertical-align: middle; width: 200px; font-weight: bold">
+            Nama
+          </td>
+          <td>
+            <select id="searchName" class="form-select"></select>
+          </td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold">No Hp</td>
+          <td id="noHp"></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold">Jenis Kelamin</td>
+          <td id="jenisKelamin"></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold">Alamat</td>
+          <td id="alamat"></td>
+        </tr>
+      </table>
+      <br />
+      <div id="resultTable" class="d-none"></div>
+
       </div>
 
-      <div class="table-responsive d-none" id="resultTable">
-        <table class="table table-bordered table-striped mt-4">
-          <thead class="table-success" style="font-size: 12px"></thead>
-          <tbody id="resultBody" style="font-size: 12px"></tbody>
-        </table>
-      </div>
+     
     </div>
 
     <!-- JS: jQuery, Bootstrap, Select2 -->
@@ -136,126 +161,201 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-      const BASE_API =
-        "https://script.google.com/macros/s/AKfycby6WXvYTeZcRpVb6UtkM4EMODKXJQKYF2nFdO5qIg6NvOeyMooIsL-yXm2Neoj7dYdg-Q/exec";
-
-      const cache = {};
-
-      $(document).ready(function () {
-        $("#searchName").select2({
-          theme: "bootstrap4",
-          placeholder: "Ketik nama pasien",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: BASE_API,
-            dataType: "json",
-            delay: 100,
-            data: (params) => ({
-              name: params.term || "",
-              mode: "select2",
-            }),
-            beforeSend: () => {
-              startSelect2LoadingAnimation();
-            },
-            processResults: (data) => ({
-              results: data.data.map((row) => ({
-                id: row[3],
-                text: row[3],
-              })),
-            }),
-            cache: true,
-          },
-        });
-
-        // 🌀 Animasi Loading Saat Search
-        function startSelect2LoadingAnimation() {
-          let dots = 0;
-          const intervalId = setInterval(() => {
-            const $loading = $(".select2-results__option--loading");
-            if ($loading.length) {
-              dots = (dots + 1) % 4;
-              $loading.text("🔍 Mencari" + ".".repeat(dots));
-            } else {
-              clearInterval(intervalId);
-            }
-          }, 300);
+        const BASE_API =
+          "https://script.google.com/macros/s/AKfycby6WXvYTeZcRpVb6UtkM4EMODKXJQKYF2nFdO5qIg6NvOeyMooIsL-yXm2Neoj7dYdg-Q/exec";
+      
+        const cache = {};
+      
+        function formatDate(dateString) {
+          if (!dateString) return "-";
+          const date = new Date(dateString);
+          return date.toLocaleDateString("id-ID");
         }
-
-        // Tampilkan hasil detail saat dipilih
-        $("#searchName").on("select2:select", function (e) {
-          const nama = e.params.data.id;
-
-          if (cache[nama]) {
-            showResult(cache[nama].header, cache[nama].data);
-            return;
+      
+        function showSpinner(show) {
+          if (show) {
+            $("body").append(`
+              <div id="loadingSpinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75" style="z-index: 1050;">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            `);
+          } else {
+            $("#loadingSpinner").remove();
           }
-
-          showSpinner(true);
-
-          $.ajax({
-            url: BASE_API,
-            method: "GET",
-            data: {
-              name: nama,
-              mode: "detail",
-            },
-            success: function (res) {
-              cache[nama] = res;
-              showResult(res.header, res.data);
-            },
-            error: function () {
-              alert("Gagal mengambil data pasien.");
-            },
-            complete: function () {
-              showSpinner(false);
-            },
-          });
-        });
-      });
-
-      function showSpinner(show) {
-        if (show) {
-          $("body").append(`
-      <div id="loadingSpinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75" style="z-index: 1050;">
-        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-      </div>
-    `);
-        } else {
-          $("#loadingSpinner").remove();
         }
-      }
-
-      function showResult(header, data) {
-        const thead = document.querySelector("thead");
-        const tbody = document.querySelector("tbody");
-        const tableWrapper = document.getElementById("resultTable");
-
-        thead.innerHTML = "";
-        tbody.innerHTML = "";
-
-        const trHead = document.createElement("tr");
-        header.forEach((text) => {
-          const th = document.createElement("th");
-          th.textContent = text;
-          trHead.appendChild(th);
-        });
-        thead.appendChild(trHead);
-
-        data.forEach((row) => {
-          const tr = document.createElement("tr");
-          header.forEach((_, i) => {
-            const td = document.createElement("td");
-            td.textContent = row[i] || "";
-            tr.appendChild(td);
+      
+        function showResult(header, data) {
+          if (!data || data.length === 0) return;
+      
+          const pasien = data[0]; // Ambil info pasien dari entri pertama
+      
+          document.getElementById("noHp").textContent = pasien[7] || "-";
+          const gender =
+            pasien[8] === "P" ? "Perempuan" : pasien[8] === "L" ? "Laki - Laki" : "-";
+          document.getElementById("jenisKelamin").textContent = gender;
+          document.getElementById("alamat").textContent = pasien[11] || "-";
+      
+          renderPemeriksaanMulti(data);
+        }
+      
+        function renderPemeriksaanMulti(pasienList) {
+          document.querySelectorAll(".dynamic-pemeriksaan").forEach((el) =>
+            el.remove()
+          );
+      
+          let html = `
+            <div class="table-responsive mt-4 dynamic-pemeriksaan">
+            <table class="table table-bordered text-center align-middle" style="font-size: 13px;">
+                <thead class="table-light">
+                <tr>
+                    <th rowspan="2">Tanggal Pelayanan</th>
+                    <th colspan="2">Data Obyektif</th>
+                    <th rowspan="2" width="280px;">Keluhan</th>
+                    <th rowspan="2">Diagnosa</th>
+                    <th rowspan="2">Terapi</th>
+                    <th rowspan="2">Tindakan</th>
+                </tr>
+                <tr>
+                    <th>Jenis</th>
+                    <th>Hasil</th>
+                </tr>
+                </thead>
+                <tbody>
+        `;
+      
+          pasienList.forEach((pasien) => {
+            const pemeriksaanData = [
+              { label: "Tensi", value: pasien[12] },
+              { label: "Nadi", value: pasien[13] },
+              { label: "Suhu", value: pasien[14] },
+              { label: "Pernapasan", value: pasien[15] },
+              { label: "Tinggi Badan", value: pasien[16] },
+              { label: "Berat Badan", value: pasien[17] },
+              { label: "Lingkar Perut", value: pasien[18] },
+            ];
+      
+            pemeriksaanData.forEach((item, index) => {
+              html += `
+                <tr>
+                  ${
+                    index === 0
+                      ? `<td rowspan="${pemeriksaanData.length}">${formatDate(
+                          pasien[1]
+                        ) || "-"}</td>`
+                      : ""
+                  }
+                  <td class="text-start">${item.label}</td>
+                  <td>${item.value || ""}</td>
+                  ${
+                    index === 0
+                      ? `<td rowspan="${pemeriksaanData.length}">${pasien[19] || ""}</td>`
+                      : ""
+                  }
+                  ${
+                    index === 0
+                      ? `<td rowspan="${pemeriksaanData.length}">${pasien[20] || ""}</td>`
+                      : ""
+                  }
+                  ${
+                    index === 0
+                      ? `<td rowspan="${pemeriksaanData.length}">${pasien[21] || ""}</td>`
+                      : ""
+                  }
+                  ${
+                    index === 0
+                      ? `<td rowspan="${pemeriksaanData.length}">${pasien[22] || ""}</td>`
+                      : ""
+                  }
+                </tr>
+              `;
+            });
           });
-          tbody.appendChild(tr);
+      
+          html += `
+              </tbody>
+            </table>
+            </div>
+          `;
+      
+          const container = document.getElementById("resultTable");
+          if (container) {
+            container.insertAdjacentHTML("afterend", html);
+          }
+        }
+      
+        $(document).ready(function () {
+          $("#searchName").select2({
+            theme: "bootstrap4",
+            placeholder: "Ketik nama pasien",
+            allowClear: true,
+            minimumInputLength: 1,
+            ajax: {
+              url: BASE_API,
+              dataType: "json",
+              delay: 100,
+              data: (params) => ({
+                name: params.term || "",
+                mode: "select2",
+              }),
+              beforeSend: () => {
+                startSelect2LoadingAnimation();
+              },
+              processResults: (data) => ({
+                results: data.data.map((row) => ({
+                  id: row[3],
+                  text: row[3],
+                })),
+              }),
+              cache: true,
+            },
+          });
+      
+          function startSelect2LoadingAnimation() {
+            let dots = 0;
+            const intervalId = setInterval(() => {
+              const $loading = $(".select2-results__option--loading");
+              if ($loading.length) {
+                dots = (dots + 1) % 4;
+                $loading.text("🔍 Mencari" + ".".repeat(dots));
+              } else {
+                clearInterval(intervalId);
+              }
+            }, 150);
+          }
+      
+          $("#searchName").on("select2:select", function (e) {
+            const nama = e.params.data.id;
+      
+            if (cache[nama]) {
+              showResult(cache[nama].header, cache[nama].data);
+              return;
+            }
+      
+            showSpinner(true);
+      
+            $.ajax({
+              url: BASE_API,
+              method: "GET",
+              data: {
+                name: nama,
+                mode: "detail",
+              },
+              success: function (res) {
+                cache[nama] = res;
+                showResult(res.header, res.data);
+              },
+              error: function () {
+                alert("Gagal mengambil data pasien.");
+              },
+              complete: function () {
+                showSpinner(false);
+              },
+            });
+          });
         });
-
-        tableWrapper.classList.remove("d-none");
-      }
-    </script>
+      </script>
+      
   </body>
 </html>
